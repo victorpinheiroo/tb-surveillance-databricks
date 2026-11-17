@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.databricks/
+spark-warehouse/
+metastore_db/
+derby.log
+# Built by scripts/build_landing.py in CI and uploaded to the Volume; never committed.
+landing/
+_source/
+.claude/

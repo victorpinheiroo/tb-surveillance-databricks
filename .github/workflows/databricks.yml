@@ -1,0 +1,78 @@
+name: Databricks pipeline
+
+# Ingestion happens here, outside Databricks: Free Edition only offers
+# serverless compute with restricted outbound internet, so the raw files are
+# prepared by this workflow and uploaded to a Unity Catalog Volume.
+#
+# Requires two repository secrets: DATABRICKS_HOST and DATABRICKS_TOKEN.
+
+on:
+  workflow_dispatch:
+    inputs:
+      years:
+        description: 'Years to process: "2015", "2015-2017", "all". Start with one year to measure quota.'
+        required: true
+        default: "2015"
+
+permissions:
+  contents: write # commits the parity report back to the repository
+
+concurrency:
+  group: databricks-pipeline
+  cancel-in-progress: false
+
+env:
+  DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+  DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+  SOURCE_REPO: victorpinheiroo/tb-surveillance-datasus
+  SOURCE_SHA: cdfcd297fed92ade2dba524fcb807cfc8508aa26
+  CATALOG: workspace
+  YEARS: ${{ inputs.years }}
+
+jobs:
+  deploy-and-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout original pipeline at the baseline commit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ env.SOURCE_SHA }}
+          path: _source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build landing folder and manifest
+        run: |
+          pip install "pyarrow>=15"
+          python scripts/build_landing.py --source _source --out landing --source-commit "$SOURCE_SHA"
+
+      - uses: databricks/setup-cli@main
+      - name: Validate and deploy the bundle (schemas, volumes, job)
+        run: |
+          databricks bundle validate
+          databricks bundle deploy
+
+      - name: Upload raw files, manifest and baseline gold to the landing Volume
+        run: databricks fs cp --recursive --overwrite landing "dbfs:/Volumes/${CATALOG}/tb_bronze/landing"
+
+      - name: Run the job
+        run: databricks bundle run tb_pipeline --params "years=${YEARS}"
+
+      - name: Download the parity report
+        if: always()
+        run: |
+          databricks fs cp --overwrite "dbfs:/Volumes/${CATALOG}/tb_ops/reports/parity_report.md" docs/parity-report.md
+          python scripts/publish_parity.py --report docs/parity-report.md --readme README.md
+
+      - name: Commit the parity report
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md docs/parity-report.md
+          git diff --staged --quiet && echo "Parity report unchanged." && exit 0
+          git commit -m "Parity report from Databricks run (years=${YEARS})"
+          git push

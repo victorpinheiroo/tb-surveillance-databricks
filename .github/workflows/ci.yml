@@ -1,0 +1,72 @@
+name: CI
+
+# Runs on every push without any Databricks account: unit tests with local
+# PySpark + Delta, then the whole pipeline on the real data with a strict
+# parity check against the original gold.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  SOURCE_REPO: victorpinheiroo/tb-surveillance-datasus
+  # Parity baseline: the original repository re-runs monthly and rewrites its
+  # data, so input (bronze) and expected output (gold) are pinned to one commit.
+  SOURCE_SHA: cdfcd297fed92ade2dba524fcb807cfc8508aa26
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check src tests scripts
+      - name: Unit tests (PySpark + Delta, ANSI mode)
+        run: pytest -v -rs
+
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout original pipeline at the baseline commit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ env.SOURCE_SHA }}
+          path: _source
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Build landing folder and manifest
+        run: python scripts/build_landing.py --source _source --out landing --source-commit "$SOURCE_SHA"
+      - name: Run the pipeline with local Spark and check parity
+        run: python scripts/run_local.py --landing landing --years all --reader spark --report parity-report.md
+      - name: Publish report to the run summary
+        if: always()
+        run: test -f parity-report.md && cat parity-report.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parity-report
+          path: parity-report.md
+          if-no-files-found: ignore

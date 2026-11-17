@@ -1,0 +1,29 @@
+# Databricks Asset Bundle: schemas, volumes and the job, all as code.
+#
+# The workspace host is not hard-coded: the CLI takes it from DATABRICKS_HOST
+# (GitHub Actions) or from the authenticated profile (local use).
+bundle:
+  name: tb_surveillance_databricks
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Unity Catalog catalog. Free Edition ships with one named `workspace`.
+    default: workspace
+
+# The job only needs src/ and notebooks/. Files ignored by git (landing/,
+# _source/, .venv/) are never synced; these are excluded on top of that.
+sync:
+  exclude:
+    - tests/**
+    - docs/**
+    - scripts/**
+    - .github/**
+
+targets:
+  free:
+    default: true
+    # No `mode: development` on purpose: it prefixes schema names with the user
+    # name, and the upload step needs a stable Volume path.

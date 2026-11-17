@@ -1,0 +1,72 @@
+resources:
+  schemas:
+    tb_bronze:
+      catalog_name: ${var.catalog}
+      name: tb_bronze
+      comment: Raw SINAN-TB, SIM and IBGE data as landed, plus the landing manifest.
+    tb_silver:
+      catalog_name: ${var.catalog}
+      name: tb_silver
+      comment: Typed, decoded and deduplicated tables, loaded incrementally with MERGE.
+    tb_gold:
+      catalog_name: ${var.catalog}
+      name: tb_gold
+      comment: Incidence, treatment abandonment and SINAN x SIM reconciliation.
+    tb_ops:
+      catalog_name: ${var.catalog}
+      name: tb_ops
+      comment: Quality results, MERGE metrics and parity results of every run.
+
+  volumes:
+    landing:
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.tb_bronze.name}
+      name: landing
+      volume_type: MANAGED
+      comment: Raw Parquet files, manifest and original gold, uploaded by GitHub Actions.
+    reports:
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.tb_ops.name}
+      name: reports
+      volume_type: MANAGED
+      comment: Parity report written by the job and downloaded by GitHub Actions.
+
+  jobs:
+    tb_pipeline:
+      name: tb-surveillance-pipeline
+      description: >-
+        SINAN-TB x SIM x IBGE medallion pipeline in PySpark + Delta, with a
+        parity check against the original pandas pipeline.
+      # Free Edition allows 5 concurrent job tasks per account; this job runs
+      # its 4 tasks one after another and never overlaps with itself.
+      max_concurrent_runs: 1
+      queue:
+        enabled: true
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        # Start with a single year to measure quota use; "all" (or 2015-2024)
+        # processes the whole window and makes the parity check strict.
+        - name: years
+          default: "2015"
+      # No cluster is declared: notebook tasks without one run on serverless
+      # compute, the only compute Free Edition offers.
+      tasks:
+        - task_key: bronze
+          notebook_task:
+            notebook_path: ../notebooks/01_bronze.py
+        - task_key: silver
+          depends_on:
+            - task_key: bronze
+          notebook_task:
+            notebook_path: ../notebooks/02_silver.py
+        - task_key: gold
+          depends_on:
+            - task_key: silver
+          notebook_task:
+            notebook_path: ../notebooks/03_gold.py
+        - task_key: parity
+          depends_on:
+            - task_key: gold
+          notebook_task:
+            notebook_path: ../notebooks/04_parity.py

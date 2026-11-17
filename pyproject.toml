@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tb-pipeline"
+version = "0.1.0"
+description = "TB surveillance pipeline (SINAN x SIM x IBGE) rebuilt in PySpark + Delta on Databricks Free Edition"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+# No runtime dependencies on purpose: PySpark and Delta are provided by the
+# Databricks serverless runtime. Local/CI versions are pinned under `dev`.
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pyspark>=4.0,<4.1",
+    "delta-spark>=4.0,<4.1",
+    "pyarrow>=15",
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "scripts"]
+markers = [
+    "delta: needs Delta tables (MERGE tests); skipped on Windows without winutils",
+    "localfs: Spark reads local files; skipped on Windows without winutils",
+]
+
+[tool.ruff]
+line-length = 110
+extend-exclude = ["notebooks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tb_pipeline", "build_landing", "publish_parity"]
