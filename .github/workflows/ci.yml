@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 # Runs on every push without any Databricks account: unit tests with local
 # PySpark + Delta, then the whole pipeline on the real data with a strict
