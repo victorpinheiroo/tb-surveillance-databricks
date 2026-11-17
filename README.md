@@ -50,8 +50,8 @@ The baseline is pinned to commit [`cdfcd29`](https://github.com/victorpinheiroo/
 | Piece | State |
 |---|---|
 | Transformations, quality checks, parity | Done. Run end to end on the full 2015–2024 data with local Spark: parity passes (report above). |
-| Unit tests | 43 tests with local PySpark in ANSI mode. On Windows 40 pass and 3 are skipped (they need Delta or Spark file access, which require `winutils` there). |
-| `MERGE` tests and CI workflows | Written, **not yet executed**: the Delta `MERGE` tests run only on Linux, and the GitHub Actions workflows have not run yet. |
+| Unit tests | 43 tests with local PySpark + Delta in ANSI mode, run by the CI workflow on every push. They include the Delta `MERGE` behaviour (idempotent re-run, scoped delete, update on derived change). |
+| Parity in CI | The CI workflow rebuilds the landing folder from the pinned commit and runs the whole pipeline with Spark's own file reader on Linux, with a strict parity check. |
 | Asset Bundle, job, upload workflow | Written, **not yet deployed**: no run on a Databricks workspace has happened yet. The bundle configuration parses with the Databricks CLI. |
 | Run screenshots | Pending the first Databricks run (`docs/screenshots/`). |
 
@@ -175,7 +175,7 @@ docs/adrs/           architecture decision records
 ## Known limitations
 
 - The bundle, the job and the upload workflow have not been exercised on a real workspace yet.
-- The Delta `MERGE` path has not been executed yet: its tests are skipped on Windows without `winutils` and are meant to run in CI (Linux).
+- The Delta `MERGE` is tested against open-source Delta in CI, not yet on Databricks serverless. On Windows without `winutils` those tests are skipped.
 - Dates are stored as `DATE` and population in silver SINAN as `BIGINT`, where the original kept timestamps and a raw string. Silver is therefore not type-identical to the original; the parity claim is about gold.
 - Limitations of the data itself (case identity, SIM coverage gaps, unstable municipal rates) are unchanged and documented in the original repository.
 

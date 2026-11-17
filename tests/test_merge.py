@@ -3,6 +3,7 @@
 import uuid
 
 import pytest
+from pyspark.sql import functions as F
 
 from tb_pipeline import merge
 
@@ -10,8 +11,17 @@ SCHEMA = "CASO string, SITUA string, _particao_ano int, populacao bigint"
 
 
 def staged(spark, rows):
+    """Same order as the pipeline: the key is taken from the source columns,
+    and derived columns (here `populacao`) are joined in afterwards."""
     df = spark.createDataFrame(rows, SCHEMA)
-    return merge.with_record_hash(merge.with_content_key(df, scope_columns=["_particao_ano"]))
+    keyed = merge.with_content_key(df.drop("populacao"), scope_columns=["_particao_ano"])
+    derived = df.select(
+        F.col("CASO").alias("_caso"), F.col("_particao_ano").alias("_ano"), "populacao"
+    ).distinct()
+    joined = keyed.join(
+        derived, (F.col("CASO") == F.col("_caso")) & (F.col("_particao_ano") == F.col("_ano")), "left"
+    ).drop("_caso", "_ano")
+    return merge.with_record_hash(joined)
 
 
 def test_content_key_keeps_identical_rows_and_is_stable(spark):
