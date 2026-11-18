@@ -7,38 +7,51 @@ Same sources, same gold tables, no new domain, no dashboard, no ML. The point is
 ## Parity report
 
 <!-- parity:start -->
-Result: **PASS** — every row and every column of every gold table matches the original.
+Result: **PARTIAL RUN** — only part of the year window was processed, so differences against the full-window baseline are expected and do not fail the job.
 
-- Engine: local Spark 4.0.5 (same transformation code as the Databricks job, no Delta)
+- Engine: Databricks serverless, Spark 4.2.0
 - Baseline: original pandas pipeline at commit `cdfcd29`
-- Years processed by this run: `2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024`
-- Generated at: 2026-11-17 01:50 (UTC)
+- Years processed by this run: `2015`
+- Generated at: 2026-11-18 00:45 (UTC)
 - Float tolerance: 1e-09 (absolute); everything else compared exactly
 
 | Table | Key | Rows (Spark) | Rows (original) | Only in Spark | Only in original | Columns compared | Cells differing | Status |
 |---|---|---:|---:|---:|---:|---:|---:|:---:|
 | `dim_uf` | uf_codigo | 27 | 27 | 0 | 0 | 2 | 0 | PASS |
-| `fct_incidencia_tb` | ID_MN_RESI, NU_ANO | 41,074 | 41,074 | 0 | 0 | 6 | 0 | PASS |
-| `fct_taxa_abandono` | ID_MN_RESI, NU_ANO | 39,710 | 39,710 | 0 | 0 | 4 | 0 | PASS |
-| `fct_taxa_abandono_uf` | uf_codigo, ano | 270 | 270 | 0 | 0 | 5 | 0 | PASS |
-| `fct_reconciliacao_sinan_sim` | uf_sigla, ano | 270 | 270 | 0 | 0 | 5 | 0 | PASS |
+| `fct_incidencia_tb` | ID_MN_RESI, NU_ANO | 4,882 | 41,074 | 0 | 36,192 | 6 | 1,881 | FAIL |
+| `fct_taxa_abandono` | ID_MN_RESI, NU_ANO | 4,740 | 39,710 | 0 | 34,970 | 4 | 2,139 | FAIL |
+| `fct_taxa_abandono_uf` | uf_codigo, ano | 98 | 270 | 0 | 172 | 5 | 216 | FAIL |
+| `fct_reconciliacao_sinan_sim` | uf_sigla, ano | 27 | 270 | 0 | 243 | 5 | 2 | FAIL |
 
 Aggregates (sum of each numeric column over the whole table):
 
 | Table | Column | Spark | Original | Equal |
 |---|---|---:|---:|:---:|
-| `fct_incidencia_tb` | casos | 951,035 | 951,035 | yes |
-| `fct_incidencia_tb` | populacao | 1,993,917,761 | 1,993,917,761 | yes |
-| `fct_incidencia_tb` | incidencia_por_100k | 1,393,310.015543 | 1,393,310.015543 | yes |
-| `fct_taxa_abandono` | n_casos_encerrados | 911,257 | 911,257 | yes |
-| `fct_taxa_abandono` | n_abandono | 144,533 | 144,533 | yes |
-| `fct_taxa_abandono` | taxa_abandono_pct | 371,301.804836 | 371,301.804836 | yes |
-| `fct_taxa_abandono_uf` | n_casos_encerrados | 911,148 | 911,148 | yes |
-| `fct_taxa_abandono_uf` | n_abandono | 144,520 | 144,520 | yes |
-| `fct_taxa_abandono_uf` | taxa_abandono_pct | 3,907.110337 | 3,907.110337 | yes |
-| `fct_reconciliacao_sinan_sim` | obitos_sim | 40,205 | 40,205 | yes |
-| `fct_reconciliacao_sinan_sim` | obitos_sinan | 37,727 | 37,727 | yes |
-| `fct_reconciliacao_sinan_sim` | diferenca_sim_menos_sinan | 11,138 | 11,138 | yes |
+| `fct_incidencia_tb` | casos | 85,368 | 951,035 | NO |
+| `fct_incidencia_tb` | populacao | 461,452,480 | 1,993,917,761 | NO |
+| `fct_incidencia_tb` | incidencia_por_100k | 123,039.142754 | 1,393,310.015543 | NO |
+| `fct_taxa_abandono` | n_casos_encerrados | 82,051 | 911,257 | NO |
+| `fct_taxa_abandono` | n_abandono | 10,719 | 144,533 | NO |
+| `fct_taxa_abandono` | taxa_abandono_pct | 44,264.301915 | 371,301.804836 | NO |
+| `fct_taxa_abandono_uf` | n_casos_encerrados | 81,998 | 911,148 | NO |
+| `fct_taxa_abandono_uf` | n_abandono | 10,712 | 144,520 | NO |
+| `fct_taxa_abandono_uf` | taxa_abandono_pct | 1,971.089452 | 3,907.110337 | NO |
+| `fct_reconciliacao_sinan_sim` | obitos_sim | 4,373 | 40,205 | NO |
+| `fct_reconciliacao_sinan_sim` | obitos_sinan | 2,970 | 37,727 | NO |
+| `fct_reconciliacao_sinan_sim` | diferenca_sim_menos_sinan | 1,583 | 11,138 | NO |
+
+Columns with differences:
+
+- `fct_incidencia_tb.casos`: 941 row(s)
+- `fct_incidencia_tb.incidencia_por_100k`: 940 row(s)
+- `fct_taxa_abandono.n_casos_encerrados`: 909 row(s)
+- `fct_taxa_abandono.n_abandono`: 588 row(s)
+- `fct_taxa_abandono.taxa_abandono_pct`: 642 row(s)
+- `fct_taxa_abandono_uf.n_casos_encerrados`: 72 row(s)
+- `fct_taxa_abandono_uf.n_abandono`: 72 row(s)
+- `fct_taxa_abandono_uf.taxa_abandono_pct`: 72 row(s)
+- `fct_reconciliacao_sinan_sim.obitos_sinan`: 1 row(s)
+- `fct_reconciliacao_sinan_sim.diferenca_sim_menos_sinan`: 1 row(s)
 <!-- parity:end -->
 
 How to read it: each gold table is full-outer-joined with the original on its business key. "Only in Spark" and "Only in original" count rows missing from one side; "Cells differing" counts values that differ in rows present on both. Floats are compared with an absolute tolerance of 1e-9, everything else exactly. The report is produced by [`src/tb_pipeline/parity.py`](src/tb_pipeline/parity.py); a full-window run fails if anything differs.
